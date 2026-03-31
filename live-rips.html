@@ -113,24 +113,40 @@ function render(){
 
   // Stats
   var total = rows.reduce(function(s,r){ return s+(r.card.value||0); },0);
-  var soldRows = rows.filter(function(r){ return isSold(r.card); });
+  var pulledRepacks = repacks.filter(function(rp){
+    return rp.status==='sold' || invoices.some(function(inv){ return (inv.lineItems||[]).some(function(l){ return l.repackId===rp.id; }); });
+  }).length;
+  // Average value of unsold repacks
+  var unsoldRepacks = repacks.filter(function(rp){
+    return rp.status!=='sold' && !invoices.some(function(inv){ return (inv.lineItems||[]).some(function(l){ return l.repackId===rp.id; }); });
+  });
+  var avgReturn = 0;
+  if(unsoldRepacks.length){
+    var totalUnsoldVal = unsoldRepacks.reduce(function(s,rp){
+      return s+(rp.cardIds||[]).reduce(function(sv,cid){
+        var c=cards.find(function(x){ return x.id===cid; }); return sv+(c?c.value||0:0);
+      },0);
+    },0);
+    avgReturn = totalUnsoldVal / unsoldRepacks.length;
+  }
   document.getElementById('stats').innerHTML =
     '<div class="stat"><div class="stat-lbl">Total Repacks</div><div class="stat-val">'+repacks.length+'</div></div>'
     +'<div class="stat"><div class="stat-lbl">Total Value</div><div class="stat-val green">'+money(total)+'</div></div>'
-    +'<div class="stat"><div class="stat-lbl">Sold</div><div class="stat-val">'+soldRows.length+'</div></div>';
+    +'<div class="stat"><div class="stat-lbl">Repacks Sold</div><div class="stat-val">'+pulledRepacks+'</div></div>'
+    +'<div class="stat"><div class="stat-lbl">Avg Return</div><div class="stat-val green">'+money(avgReturn)+'</div></div>';
 
   // Top Hits — only available cards
   var availRows = rows.filter(function(r){ return !isCardPulled(r.card) && !isSold(r.card); });
   var top3 = availRows.slice(0,3);
   var topHtml = '<div class="section-title">Top Hits Available</div><div class="top-hits-cards">';
-  var order = top3.length>=3?[1,0,2]:top3.map(function(_,i){ return i; });
+  var order = top3.map(function(_,i){ return i; });
   order.forEach(function(idx){
     if(idx>=top3.length) return;
     var c = top3[idx].card;
     var val = c.value||0;
     var gc = glowColor(val, true);
-    var isTop = idx===0;
-    var imgW = isTop?300:240;
+    var isTop = true;
+    var imgW = 300;
     topHtml +=
       '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto;">'
         +'<div style="position:relative;">'
